@@ -50,7 +50,7 @@ func convertDirectoryToWebP(dirPath string) error {
 
 func isSupportedFormat(filePath string) bool {
 	ext := strings.ToLower(filepath.Ext(filePath))
-	return ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif" || ext == ".tiff"
+	return ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif" || ext == ".tiff" || ext == ".tif"
 }
 
 func convertToWebP(inputPath string) error {
