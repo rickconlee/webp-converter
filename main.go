@@ -9,9 +9,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	_ "golang.org/x/image/tiff"
+
+	"runtime"
 
 	"github.com/chai2010/webp"
 	"github.com/schollz/progressbar/v3"
@@ -26,7 +29,6 @@ func main() {
 	directoryPath := os.Args[1]
 	fmt.Println("Scanning directory for images...")
 
-	// Count total images first
 	totalImages, err := countImages(directoryPath)
 	if err != nil {
 		fmt.Printf("Error scanning directory: %v\n", err)
@@ -41,13 +43,36 @@ func main() {
 	fmt.Printf("Found %d images for conversion. Starting...\n", totalImages)
 	bar := progressbar.Default(int64(totalImages))
 
-	// Start the conversion process with timer
-	start := time.Now()
-	err = convertDirectoryToWebP(directoryPath, bar)
-	if err != nil {
-		fmt.Printf("Error converting images: %v\n", err)
-		os.Exit(1)
+	// Use all available cores
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	// Create a channel for file paths
+	filePaths := make(chan string, totalImages)
+
+	// WaitGroup for synchronizing goroutines
+	var wg sync.WaitGroup
+
+	// Number of worker goroutines
+	const numWorkers = 4 // or runtime.NumCPU() for max concurrency
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go convertWorker(filePaths, &wg, bar)
 	}
+
+	// Start the timer
+	start := time.Now()
+
+	// Send file paths to the channel
+	filepath.Walk(directoryPath, func(path string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() && isSupportedFormat(path) {
+			filePaths <- path
+		}
+		return nil
+	})
+	close(filePaths)
+
+	// Wait for all goroutines to finish
+	wg.Wait()
 
 	elapsed := time.Since(start)
 	fmt.Printf("\nAll conversions successful! Time taken: %s\n", elapsed)
@@ -64,20 +89,16 @@ func countImages(dirPath string) (int, error) {
 	return count, err
 }
 
-func convertDirectoryToWebP(dirPath string, bar *progressbar.ProgressBar) error {
-	return filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+func convertWorker(filePaths chan string, wg *sync.WaitGroup, bar *progressbar.ProgressBar) {
+	defer wg.Done()
+	for path := range filePaths {
+		err := convertToWebP(path)
 		if err != nil {
-			return err
-		}
-		if !info.IsDir() && isSupportedFormat(path) {
-			err := convertToWebP(path)
-			if err != nil {
-				fmt.Printf("Failed to convert %s: %v\n", path, err)
-			}
+			fmt.Printf("Failed to convert %s: %v\n", path, err)
+		} else {
 			bar.Add(1)
 		}
-		return nil
-	})
+	}
 }
 
 func isSupportedFormat(filePath string) bool {
