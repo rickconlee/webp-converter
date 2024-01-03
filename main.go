@@ -3,16 +3,18 @@ package main
 import (
 	"fmt"
 	"image"
-	_ "image/gif"  // Register GIF format
-	_ "image/jpeg" // Register JPEG format
-	_ "image/png"  // Register PNG format
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
-	_ "golang.org/x/image/tiff" // Register TIFF format
+	_ "golang.org/x/image/tiff"
 
 	"github.com/chai2010/webp"
+	"github.com/schollz/progressbar/v3"
 )
 
 func main() {
@@ -22,16 +24,47 @@ func main() {
 	}
 
 	directoryPath := os.Args[1]
-	err := convertDirectoryToWebP(directoryPath)
+	fmt.Println("Scanning directory for images...")
+
+	// Count total images first
+	totalImages, err := countImages(directoryPath)
+	if err != nil {
+		fmt.Printf("Error scanning directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	if totalImages == 0 {
+		fmt.Println("No images found for conversion.")
+		os.Exit(0)
+	}
+
+	fmt.Printf("Found %d images for conversion. Starting...\n", totalImages)
+	bar := progressbar.Default(int64(totalImages))
+
+	// Start the conversion process with timer
+	start := time.Now()
+	err = convertDirectoryToWebP(directoryPath, bar)
 	if err != nil {
 		fmt.Printf("Error converting images: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Println("All conversions successful!")
+	elapsed := time.Since(start)
+	fmt.Printf("\nAll conversions successful! Time taken: %s\n", elapsed)
 }
 
-func convertDirectoryToWebP(dirPath string) error {
+func countImages(dirPath string) (int, error) {
+	var count int
+	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() && isSupportedFormat(path) {
+			count++
+		}
+		return err
+	})
+	return count, err
+}
+
+func convertDirectoryToWebP(dirPath string, bar *progressbar.ProgressBar) error {
 	return filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -40,9 +73,8 @@ func convertDirectoryToWebP(dirPath string) error {
 			err := convertToWebP(path)
 			if err != nil {
 				fmt.Printf("Failed to convert %s: %v\n", path, err)
-			} else {
-				fmt.Printf("Converted %s successfully\n", path)
 			}
+			bar.Add(1)
 		}
 		return nil
 	})
