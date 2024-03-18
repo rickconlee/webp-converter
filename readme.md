@@ -1,10 +1,6 @@
-# JPG/JPEG PNG GIF TIF/TIFF to WebP Converter 
-
-This project arose out of a need to convert images of various types to WebP. This is done for technical SEO. 
-
-This tool can be run locally from the command line, on your server, or in a docker container. 
-
+This project converts JPEG/JPG, PNG, Gif and TIFF files to WebP using a command line binary. 
 The source code is written in `Go`, and compiled on `1.21.5`
+
 
 ## Usage Instructions 
 
